@@ -1,0 +1,53 @@
+CREATE Table heun.teachercenterconsolidatedurl AS
+SELECT
+report.timestamp,
+extra.tag.issue_depth_1,
+beta.flag.junk,
+report.tag.title,
+report.id,
+report.user.email,
+report.web.url,
+report.description.language,
+
+
+(CASE WHEN report.web.url like '%fundamental%' THEN 'Fundamentals'
+      WHEN report.web.url like '%advanced%' THEN 'Advanced'
+      WHEN report.web.url like '%trainer_course%' THEN 'Certified Trainer Course'
+      WHEN report.web.url like '%certification_innovator%' THEN 'Certified Innovator'
+      WHEN report.web.url like '%digital_citizenship%' THEN 'Digital Citizenship'
+      WHEN report.web.url like '%diverse_learners%' THEN 'Diverse Learners'
+      ELSE 'Static'
+  END) AS ConsolidatedURL,
+    COUNT(*) as CountofURL
+
+From FLATTEN([feedback.FlatReport.latest],report.tag.title)
+WHERE product.id = 714032
+AND report.web.url NOT LIKE '%REDACTED%'
+AND report.tag.title IS NOT NULL
+AND extra.tag.issue_depth_1 NOT LIKE '#issue>L10N_Review'
+AND report.tag.title NOT IN
+  ('Danish Review',
+  'Swedish Review',
+  'Norwegian Review',
+  'Finnish Review',
+  'Dutch Review',
+  'French Review',
+  'Italian Review',
+  'Chinese Review',
+  'Japanese Review',
+  'Portuguese Review',
+  'Spanish Review')
+AND report.user.email NOT IN
+('redacted1@google.com',
+  'redacted2@google.com',
+  'redacted3@google.com')
+AND beta.flag.junk IS NOT TRUE
+Group by
+report.timestamp,
+extra.tag.issue_depth_1,
+beta.flag.junk,
+report.tag.title,
+report.id,
+report.user.email,
+report.web.url,
+report.description.language
