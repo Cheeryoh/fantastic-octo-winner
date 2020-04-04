@@ -1,0 +1,246 @@
+﻿CREATE TABLE
+  heun.teachercenterconsolidatedurl AS
+SELECT
+  report.timestamp,
+  extra.tag.issue_depth_1,
+  beta.flag.junk,
+  report.tag.title,
+  report.id,
+  report.user.email,
+  report.web.url,
+  report.description.LANGUAGE,
+  report.description.text,
+  report.description.translated,
+  (CASE
+      WHEN report.web.url LIKE '%fundamental%' THEN 'Fundamentals'
+      WHEN report.web.url LIKE '%advanced%' THEN 'Advanced'
+      WHEN report.web.url LIKE '%trainer_course%' THEN 'Certified Trainer Course'
+      WHEN report.web.url LIKE '%certification_innovator%' THEN 'Certified Innovator'
+      WHEN report.web.url LIKE '%digital_citizenship%' THEN 'Digital Citizenship'
+      WHEN report.web.url LIKE '%diverse_learners%' THEN 'Diverse Learners'
+    ELSE
+    'Static'
+  END
+    ) AS ConsolidatedURL,
+  COUNT(*) AS CountofURL
+FROM
+  FLATTEN([feedback.FlatReport.latest],
+    report.tag.title)
+WHERE
+  product.id = 714032
+  AND report.web.url NOT LIKE '%REDACTED%'
+  AND report.tag.title IS NOT NULL
+  AND extra.tag.issue_depth_1 NOT LIKE '#issue>L10N_Review'
+  AND report.tag.title NOT IN ('Danish Review',
+    'Swedish Review',
+    'Norwegian Review',
+    'Finnish Review',
+    'Dutch Review',
+    'French Review',
+    'Italian Review',
+    'Chinese Review',
+    'Japanese Review',
+    'Portuguese Review',
+    'Spanish Review')
+    AND beta.flag.junk IS NOT TRUE
+GROUP BY
+  report.timestamp,
+  report.tag.title,
+  report.id,
+  ConsolidatedURL,
+  report.web.url,
+  report.user.email,
+  report.description.LANGUAGE,
+  report.description.text,
+  report.description.translated,
+  beta.flag.junk,
+  extra.tag.issue_depth_1
+________________
+
+
+WITH
+  temp_ AS (
+  SELECT
+    experiment_id,
+    PARSE_DATETIME('%Y%m%d %H:%M:%S',
+      MIN(assignment_ts)) AS experiment_start_ts,
+    PARSE_DATETIME('%Y%m%d %H:%M:%S',
+      MAX(assignment_ts)) AS experiment_end_ts
+  FROM
+    experiments e
+  JOIN
+    subscriptions s
+  ON
+    e.user_id = s.user_id
+  GROUP BY
+    e.experiment_id)
+SELECT
+  experiment_id,
+  DATETIME_DIFF(experiment_end_ts,
+    experiment_start_ts,
+    day) AS experiment_length_days
+FROM
+  temp_
+________________
+
+SELECT
+  e.experiment_id,
+  (COUNTIF(e.experiment_assignment = 'test'
+      AND s.subscription_event = 'subscription_start') / NULLIF(COUNTIF(e.experiment_assignment = 'test'),
+      0)) AS test_conversion,
+  (COUNTIF(e.experiment_assignment = 'control'
+      AND s.subscription_event = 'subscription_start') / NULLIF(COUNTIF(e.experiment_assignment = 'control'),
+      0)) AS control_conversion
+FROM
+  subscriptions s
+JOIN
+  experiments e
+ON
+  e.user_id = s.user_id
+GROUP BY
+  e.experiment_id
+________________
+
+
+WITH
+  temp_ AS (
+  SELECT
+    e.experiment_id,
+    e.user_id,
+    e.experiment_assignment,
+    e.assignment_ts,
+    subscription_event,
+    RANK() OVER(PARTITION BY e.experiment_id ORDER BY s.event_ts) AS rank_
+  FROM
+    experiments e
+  JOIN
+    subscriptions s
+  ON
+    e.user_id = s.user_id
+  WHERE
+    subscription_event = 'subscription_start' )
+SELECT
+  experiment_id,
+  rank_,
+  user_id,
+  experiment_assignment,
+  assignment_ts
+FROM
+  temp_
+WHERE
+  rank_ <=3
+ORDER BY
+  experiment_id,
+  rank_
+________________
+
+
+SELECT
+  *
+FROM (
+  SELECT
+    registration.kryterion_ref AS `Registrar_REF`,
+    registration.kryterion_login AS `Registrar_Login`,
+    registration.kryterion_id AS `Registrar_ID`,
+    registration.first_name AS `First_Name`,
+    registration.last_name AS `Last_Name`,
+    registration.personal_email AS `Email`,
+    registration.exam_name AS `Exam_Name`,
+    CASE registration.take_type
+      WHEN 0 THEN 'First Take'
+      WHEN 1 THEN 'Re-take'
+      WHEN 2 THEN 'Re-cert'
+    ELSE
+    CAST(registration.take_type AS STRING)
+  END
+    AS `Take_Type`,
+    registration.attempt AS `Attempt`,
+    CASE registration.status
+      WHEN 0 THEN 'Registered'
+      WHEN 1 THEN 'Provisioning'
+      WHEN 2 THEN 'Pending'
+      WHEN 3 THEN 'In Progress'
+      WHEN 4 THEN 'Validating'
+      WHEN 5 THEN 'Complete'
+      WHEN 6 THEN 'No Show'
+      WHEN 7 THEN 'Terminated'
+      WHEN 8 THEN 'Provision Error'
+      WHEN 9 THEN 'Canceled'
+    ELSE
+    CAST(registration.status AS STRING)
+  END
+    AS `Status`,
+    registration.provisioned_email AS `Provisioned_Email`,
+    registration.created AS `Registered`,
+    registration.exam_start AS `Exam_Start`,
+    registration.exam_end AS `Exam_End`,
+    TIMESTAMP_DIFF(registration.exam_end, registration.exam_start, SECOND) AS `Duration_seconds`,
+    registration.questions AS `Questions`,
+    registration.scenarios AS `Scenarios`,
+    registration.pass_score AS `Pass_Score`,
+    registration.score AS `Score`,
+    registration.max_score AS `Max_Score`,
+    CASE registration.grade
+      WHEN 0 THEN 'Fail'
+      WHEN 1 THEN 'Improve'
+      WHEN 2 THEN 'Pass'
+    ELSE
+    CAST(registration.grade AS STRING)
+  END
+    AS `Grade`
+  FROM
+    `Stats.Registration` AS registration ) AS registration_export
+ORDER BY
+  `Registered` DESC
+________________
+
+
+SELECT
+  COUNT(*) AS product_views,
+  COUNT(productQuantity) AS orders,
+  SUM(productQuantity) AS quantity_product_ordered,
+  SUM(productQuantity)/COUNT(productQuantity) AS ave_per_order,
+  v2ProductName
+FROM
+  `data-to-insights.ecommerce.all_sessions`
+WHERE
+  type = 'PAGE'
+GROUP BY
+  v2ProductName
+ORDER BY
+  product_views DESC
+LIMIT
+  5;
+________________
+
+
+
+
+CREATE OR REPLACE TABLE
+  heun.g4e_external_bulk_voucher_purchases_joined_registrations_provisoning AS
+SELECT
+  registrations.platform,
+  registrations.FirstName,
+  registrations.Lastname,
+  registrations.EmailPrimary,
+  registrations.EmailRecovery,
+  registrations.EmailOrg,
+  registrations.Type,
+  registrations.Organization,
+  registrations.Country,
+  registrations.Geo,
+  registrations.EmailOrganizationDomain,
+  registrations.CertType,
+  registrations.login,
+  registrations.PromoCode,
+  registrations.VoucherCode AS VoucherCodeUsed,
+  bulkvoucher.vouchercode AS VoucherCodeGenerated,
+  bulkvoucher.expiredate,
+  bulkvoucher.partnerbatchcode
+FROM
+  g4e_credential_spii.registrations registrations
+FULL OUTER JOIN
+  g4e_external_voucher_purchases bulkvoucher
+ON
+  bulkvoucher.vouchercode = registrations.VoucherCode
+________________
