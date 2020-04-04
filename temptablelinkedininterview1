@@ -1,0 +1,11 @@
+WITH temp_ AS
+(SELECT experiment_id,
+PARSE_DATETIME(&#39;%Y%m%d %H:%M:%S&#39;, MIN(assignment_ts)) AS
+experiment_start_ts,
+PARSE_DATETIME(&#39;%Y%m%d %H:%M:%S&#39;, MAX(assignment_ts)) AS
+experiment_end_ts
+FROM experiments e JOIN subscriptions s ON e.user_id = s.user_id
+GROUP BY e.experiment_id)
+SELECT experiment_id, DATETIME_DIFF(experiment_end_ts,
+experiment_start_ts, day) AS experiment_length_days
+FROM temp_
