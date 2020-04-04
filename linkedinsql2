@@ -1,0 +1,11 @@
+SELECT e.experiment_id,
+(COUNTIF(e.experiment_assignment = &#39;test&#39; and s.subscription_event =
+&#39;subscription_start&#39;) /
+NULLIF(COUNTIF(e.experiment_assignment = &#39;test&#39;),0)) AS test_conversion,
+(COUNTIF(e.experiment_assignment = &#39;control&#39; and s.subscription_event =
+&#39;subscription_start&#39;) /
+NULLIF(COUNTIF(e.experiment_assignment = &#39;control&#39;),0)) AS
+control_conversion
+FROM subscriptions s JOIN
+experiments e ON e.user_id = s.user_id
+GROUP BY e.experiment_id
