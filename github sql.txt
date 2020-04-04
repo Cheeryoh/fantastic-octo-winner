@@ -214,8 +214,6 @@ LIMIT
 ________________
 
 
-
-
 CREATE OR REPLACE TABLE
   heun.g4e_external_bulk_voucher_purchases_joined_registrations_provisoning AS
 SELECT
