@@ -1,4 +1,0 @@
-SELECT count(DISTINCT(user_id)),completion.completed
-FROM [gweb-edu-training-center:fundamentals.student_aggregate]
-Where completion.kind = 'l' and completion.completed = true
-group by completion.completed
